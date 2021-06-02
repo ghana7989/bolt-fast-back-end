@@ -4,7 +4,8 @@ const jwt = require('jsonwebtoken')
 const asyncHandler = require('express-async-handler')
 const Fast = require('../models/fastModel')
 const User = require('../models/userModel')
-const {format} = require('date-fns')
+const {format, formatDistanceStrict} = require('date-fns')
+const {parseISO} = require('date-fns')
 
 // this:  {
 //   durationOfTheFast: 100,
@@ -21,11 +22,16 @@ const {format} = require('date-fns')
 //   id: '60b5d3d0c884ad1d5c6c441b'
 // }
 
+// Getting the Day of Fast based on Start date
+const getFastDayInWeek = date => {
+	return format(parseISO(date), 'iii')
+}
+
 exports.postFastingDetails = asyncHandler(async (req, res) => {
 	const {fastStartedAt, fastEndedAt, durationOfTheFast, fastType} = req.body
 
 	const userId = req.user.id
-	console.log('userId: ', userId)
+
 	const user = await User.findById(userId).select('-__v')
 
 	if (!user) {
@@ -40,17 +46,14 @@ exports.postFastingDetails = asyncHandler(async (req, res) => {
 		user.totalFastDuration / user.totalNumberOfFasts
 	).toFixed(2)
 
-	// Getting the Day of Fast based on Start date
-	const fastDayInWeek = date => {
-		return format(new Date(Number(date)), 'iii')
-	}
-
+	const fastDayInWeek = getFastDayInWeek(fastStartedAt)
 	const fastDetails = {
 		durationOfTheFast,
 		fastStartedAt,
 		fastEndedAt,
 		fastType,
 		fastDayInWeek,
+		id: fastStartedAt,
 	}
 
 	user.fasts.push(fastDetails)
@@ -62,7 +65,7 @@ exports.postFastingDetails = asyncHandler(async (req, res) => {
 
 exports.getFastingDetails = asyncHandler(async (req, res) => {
 	const userId = req.user.id
-	console.log('userId: ', userId)
+
 	const user = await User.findById(userId).select('-__v')
 
 	if (!user) {
@@ -71,11 +74,80 @@ exports.getFastingDetails = asyncHandler(async (req, res) => {
 		})
 		throw new Error('User not found')
 	}
-	const details = {
+	const stats = {
 		totalNumberOfFasts: user.totalNumberOfFasts,
 		averageFastDuration: user.averageFastDuration,
 		totalFastDuration: user.totalFastDuration,
 		fasts: user.fasts,
 	}
-	res.json(details)
+	res.json(stats)
+})
+
+exports.updateFast = asyncHandler(async (req, res) => {
+	const {fastType, id, fastStartedAt, fastEndedAt} = req.body
+	const user = await User.findById(req.user.id)
+	if (!user) {
+		res.status(400).json({
+			message: 'User not found',
+		})
+		throw new Error('User not found')
+	}
+	const lastIndex = user.fasts.length - 1
+	const fastNeededToUpdate = user.fasts[lastIndex]
+	// fastNeededToUpdate:  {
+	//   durationOfTheFast: 3,
+	//   fastStartedAt: '2021-06-02T05:17:05.246Z',
+	//   fastEndedAt: '2021-06-02T05:17:08.259Z',
+	//   fastType: '16:8',
+	//   fastDayInWeek: 'Wed',
+	//   id: '2021-06-02T05:17:05.246Z'
+	// }
+	// const temp = User.find({fasts})
+	let fastUpdated = {}
+
+	if (fastStartedAt) {
+		fastUpdated = {
+			...fastNeededToUpdate,
+			...fastUpdated,
+			fastStartedAt,
+		}
+	}
+	if (fastEndedAt) {
+		fastUpdated = {
+			...fastNeededToUpdate,
+			...fastUpdated,
+			fastEndedAt,
+		}
+	}
+	if (fastType) {
+		fastUpdated = {
+			...fastNeededToUpdate,
+			...fastUpdated,
+			fastType,
+		}
+	}
+	const durationOfTheFast = formatDistanceStrict(
+		parseISO(fastUpdated.fastEndedAt),
+		parseISO(fastUpdated.fastStartedAt),
+		{
+			unit: 'second',
+		},
+	).split(' ')[0]
+	fastUpdated = {
+		...fastUpdated,
+		durationOfTheFast,
+		fastDayInWeek: getFastDayInWeek(fastUpdated.fastStartedAt),
+	}
+	user.fasts[lastIndex] = {...fastUpdated}
+	user.totalFastDuration = user.fasts.reduce((acc, fast) => {
+		return acc + Number(fast.durationOfTheFast)
+	}, 0)
+	user.averageFastDuration = (
+		user.totalFastDuration / user.totalNumberOfFasts
+	).toFixed(2)
+	user.markModified('fasts')
+	user.markModified('averageFastDuration')
+	user.markModified('totalFastDuration')
+	await user.save()
+	console.log(fastUpdated)
 })

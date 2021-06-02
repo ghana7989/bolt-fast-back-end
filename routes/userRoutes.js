@@ -12,4 +12,6 @@ router
 	.route('/fast-stats')
 	.get(authController.protect, fastController.getFastingDetails)
 	.post(authController.protect, fastController.postFastingDetails)
+	.put(authController.protect, fastController.updateFast)
+// router.put('/fast-stats/:id', authController.protect)
 module.exports = router

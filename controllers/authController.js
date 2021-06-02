@@ -20,11 +20,11 @@ exports.protect = asyncHandler(async (req, res, next) => {
 		req.headers.authorization && req.headers.authorization.startsWith('Bearer')
 			? req.headers.authorization.split(' ')[1]
 			: undefined
-
-	if (!token) return next(new Error('No  Authorized Token'))
+	if (!token) return next(new Error('No Authorized Token'))
 	try {
 		const decoded = jwt.verify(token, process.env.JWT_SECRET)
 		const {id} = decoded
+		console.log('id: ', id)
 		req.user = await User.findById(id).select('-password')
 		next()
 	} catch (error) {
