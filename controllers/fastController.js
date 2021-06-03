@@ -6,6 +6,7 @@ const Fast = require('../models/fastModel')
 const User = require('../models/userModel')
 const {format, formatDistanceStrict} = require('date-fns')
 const {parseISO} = require('date-fns')
+const {summary} = require('date-streaks')
 
 // this:  {
 //   durationOfTheFast: 100,
@@ -29,7 +30,7 @@ const getFastDayInWeek = date => {
 
 exports.postFastingDetails = asyncHandler(async (req, res) => {
 	const {fastStartedAt, fastEndedAt, durationOfTheFast, fastType} = req.body
-
+	console.table({fastStartedAt, fastEndedAt})
 	const userId = req.user.id
 
 	const user = await User.findById(userId).select('-__v')
@@ -45,7 +46,15 @@ exports.postFastingDetails = asyncHandler(async (req, res) => {
 	user.averageFastDuration = (
 		user.totalFastDuration / user.totalNumberOfFasts
 	).toFixed(2)
+	// Streak
+	user.startedAtDateArr.push(new Date(fastStartedAt))
 
+	// Longest Fast -Start
+	const currentDuration = user.longestFast
+	if (currentDuration < Number(durationOfTheFast)) {
+		user.longestFast = durationOfTheFast
+	}
+	// Longest Fast -End
 	const fastDayInWeek = getFastDayInWeek(fastStartedAt)
 	const fastDetails = {
 		durationOfTheFast,
@@ -74,11 +83,15 @@ exports.getFastingDetails = asyncHandler(async (req, res) => {
 		})
 		throw new Error('User not found')
 	}
+	const {currentStreak, longestStreak} = summary(user.startedAtDateArr)
 	const stats = {
 		totalNumberOfFasts: user.totalNumberOfFasts,
 		averageFastDuration: user.averageFastDuration,
 		totalFastDuration: user.totalFastDuration,
+		longestFastDuration: user.longestFast,
 		fasts: user.fasts,
+		currentStreak,
+		longestStreak,
 	}
 	res.json(stats)
 })
@@ -111,6 +124,11 @@ exports.updateFast = asyncHandler(async (req, res) => {
 			...fastUpdated,
 			fastStartedAt,
 		}
+
+		console.log('user.startedAtDateArr: ', user.startedAtDateArr)
+		user.startedAtDateArr.length = user.startedAtDateArr.length - 1
+		user.startedAtDateArr.push(fastStartedAt)
+		console.log('user.startedAtDateArr: ', user.startedAtDateArr)
 	}
 	if (fastEndedAt) {
 		fastUpdated = {
@@ -145,9 +163,16 @@ exports.updateFast = asyncHandler(async (req, res) => {
 	user.averageFastDuration = (
 		user.totalFastDuration / user.totalNumberOfFasts
 	).toFixed(2)
+	const currentDuration = user.longestFast
+	console.table({currentDuration, durationOfTheFast})
+	if (currentDuration < Number(fastUpdated.durationOfTheFast)) {
+		user.longestFast = durationOfTheFast
+	}
+
 	user.markModified('fasts')
 	user.markModified('averageFastDuration')
 	user.markModified('totalFastDuration')
+	user.markModified('startedAtDateArr')
 	await user.save()
 	console.log(fastUpdated)
 })

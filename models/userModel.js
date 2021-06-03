@@ -57,6 +57,14 @@ const userSchema = mongoose.Schema(
 			type: Number,
 			default: 0,
 		},
+		longestFast: {
+			type: Number,
+			default: 0,
+		},
+		startedAtDateArr: {
+			type: Array,
+			default: [],
+		},
 	},
 	{
 		toJSON: {virtuals: true},
