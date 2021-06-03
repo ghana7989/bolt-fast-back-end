@@ -1,7 +1,7 @@
 /** @format */
 
 const mongoose = require('mongoose')
-const millisecondsToMinutes = require('date-fns/millisecondsToMinutes')
+const bcrypt = require('bcryptjs')
 
 // Fast= {
 // 					durationOfTheFast: {
@@ -76,7 +76,18 @@ const userSchema = mongoose.Schema(
 userSchema.virtual('name').get(function () {
 	return this.email.split('@')[0]
 })
-
+userSchema.pre('save', async function (next) {
+	// hashing the password
+	const saltingConst = 14
+	this.password = await bcrypt.hash(this.password, saltingConst)
+	next()
+})
+userSchema.methods.correctPassword = async function (
+	postedPassword,
+	userPassword,
+) {
+	return await bcrypt.compare(postedPassword, userPassword)
+}
 const User = mongoose.model('User', userSchema)
 
 module.exports = User

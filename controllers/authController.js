@@ -89,7 +89,7 @@ exports.loginUser = asyncHandler(async (req, res) => {
 	const user = await User.findOne({email})
 	// should actually save encrypted passwords even before the document
 	// But using bcryptjs and hashing and salting take some resources I didn't implement
-	if (user && user.password === password) {
+	if (user && (await user.correctPassword(password, user.password))) {
 		const {id, email, name} = user
 		res.json({
 			id,
